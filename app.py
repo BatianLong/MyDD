@@ -8,9 +8,11 @@ Flask 后端服务，提供图片转拼豆图案的 API 接口。
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from PIL import Image
+import numpy as np
 import base64
 import io
 import os
+from collections import deque
 
 # 导入自定义模块
 from services.color_quantizer import ColorQuantizer
@@ -21,6 +23,104 @@ app = Flask(__name__)
 
 # 启用 CORS，允许跨域请求（小程序需要）
 CORS(app)
+
+
+def _safe_decode_image(image_base64):
+    if not image_base64:
+        return None, ("image_base64 is required", 400)
+    if len(image_base64) > 2_000_000:
+        return None, ("image payload too large, compress before upload", 413)
+
+    image_data = base64.b64decode(image_base64)
+    if len(image_data) > 1_500_000:
+        return None, ("decoded image too large, compress before upload", 413)
+
+    image = Image.open(io.BytesIO(image_data)).convert('RGB')
+    if image.width > 4096 or image.height > 4096:
+        return None, ("image dimensions too large, compress before upload", 413)
+    return image, None
+
+
+def _largest_component(mask):
+    h, w = mask.shape
+    visited = np.zeros((h, w), dtype=bool)
+    best_points = []
+
+    for y in range(h):
+        for x in range(w):
+            if not mask[y, x] or visited[y, x]:
+                continue
+
+            q = deque([(y, x)])
+            visited[y, x] = True
+            points = [(y, x)]
+
+            while q:
+                cy, cx = q.popleft()
+                for ny, nx in ((cy + 1, cx), (cy - 1, cx), (cy, cx + 1), (cy, cx - 1)):
+                    if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not visited[ny, nx]:
+                        visited[ny, nx] = True
+                        q.append((ny, nx))
+                        points.append((ny, nx))
+
+            if len(points) > len(best_points):
+                best_points = points
+
+    if not best_points:
+        return mask
+
+    out = np.zeros_like(mask)
+    ys, xs = zip(*best_points)
+    out[np.array(ys), np.array(xs)] = True
+    return out
+
+
+def _segment_foreground_white_bg(image):
+    arr = np.array(image.convert('RGB'), dtype=np.int16)
+    h, w, _ = arr.shape
+
+    border = np.concatenate(
+        [arr[0, :, :], arr[-1, :, :], arr[:, 0, :], arr[:, -1, :]],
+        axis=0
+    )
+    bg = np.median(border, axis=0)
+
+    diff = np.abs(arr - bg).sum(axis=2)
+    border_diff = np.abs(border - bg).sum(axis=1)
+    thr = int(max(24, min(120, np.percentile(border_diff, 85) + 10)))
+
+    candidate_bg = diff <= thr
+    bg_mask = np.zeros((h, w), dtype=bool)
+    q = deque()
+
+    for x in range(w):
+        if candidate_bg[0, x]:
+            q.append((0, x))
+            bg_mask[0, x] = True
+        if candidate_bg[h - 1, x] and not bg_mask[h - 1, x]:
+            q.append((h - 1, x))
+            bg_mask[h - 1, x] = True
+    for y in range(h):
+        if candidate_bg[y, 0] and not bg_mask[y, 0]:
+            q.append((y, 0))
+            bg_mask[y, 0] = True
+        if candidate_bg[y, w - 1] and not bg_mask[y, w - 1]:
+            q.append((y, w - 1))
+            bg_mask[y, w - 1] = True
+
+    while q:
+        cy, cx = q.popleft()
+        for ny, nx in ((cy + 1, cx), (cy - 1, cx), (cy, cx + 1), (cy, cx - 1)):
+            if 0 <= ny < h and 0 <= nx < w and candidate_bg[ny, nx] and not bg_mask[ny, nx]:
+                bg_mask[ny, nx] = True
+                q.append((ny, nx))
+
+    fg_mask = ~bg_mask
+    fg_mask = _largest_component(fg_mask)
+
+    out = arr.astype(np.uint8).copy()
+    out[~fg_mask] = [255, 255, 255]
+    return Image.fromarray(out, mode='RGB')
 
 
 @app.route('/')
@@ -70,34 +170,13 @@ def convert_image():
         width = data.get('width', 35)
         height = data.get('height', 35)
         
-        # 参数验证
-        if not image_base64:
+        image, err = _safe_decode_image(image_base64)
+        if err:
+            msg, code = err
             return jsonify({
-                "code": 400,
-                "message": "image_base64 is required"
-            }), 400
-        
-        # 大体积请求保护，避免服务被超大图片拖垮。
-        if len(image_base64) > 2_000_000:
-            return jsonify({
-                "code": 413,
-                "message": "image payload too large, compress before upload"
-            }), 413
-
-        # Base64 解码为图片
-        image_data = base64.b64decode(image_base64)
-        if len(image_data) > 1_500_000:
-            return jsonify({
-                "code": 413,
-                "message": "decoded image too large, compress before upload"
-            }), 413
-
-        image = Image.open(io.BytesIO(image_data))
-        if image.width > 4096 or image.height > 4096:
-            return jsonify({
-                "code": 413,
-                "message": "image dimensions too large, compress before upload"
-            }), 413
+                "code": code,
+                "message": msg
+            }), code
         
         # 创建颜色量化器并处理图片
         quantizer = ColorQuantizer()
@@ -116,6 +195,39 @@ def convert_image():
     
     except Exception as e:
         # 错误处理
+        return jsonify({
+            "code": 500,
+            "message": str(e)
+        }), 500
+
+
+@app.route('/api/preprocess/remove-bg', methods=['POST'])
+def remove_bg_api():
+    try:
+        data = request.json or {}
+        image_base64 = data.get('image_base64')
+        image, err = _safe_decode_image(image_base64)
+        if err:
+            msg, code = err
+            return jsonify({
+                "code": code,
+                "message": msg
+            }), code
+
+        result = _segment_foreground_white_bg(image)
+        buffer = io.BytesIO()
+        result.save(buffer, format='PNG')
+        result_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        return jsonify({
+            "code": 0,
+            "data": {
+                "image_base64": result_base64,
+                "width": result.width,
+                "height": result.height
+            }
+        })
+    except Exception as e:
         return jsonify({
             "code": 500,
             "message": str(e)

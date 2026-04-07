@@ -161,7 +161,19 @@ class ColorQuantizer:
                 used_color_ids.add(color_idx)
             pixels.append(row)
         
-        # 返回实际使用的颜色列表（按 id 排序）
-        used_colors = [self.palette_dict[cid] for cid in sorted(used_color_ids)]
+        # 返回完整色卡，保证前端可按色号 id 直接索引颜色。
+        max_id = max(self.palette_dict.keys()) if self.palette_dict else 0
+        dense_palette = []
+        for cid in range(max_id + 1):
+            if cid in self.palette_dict:
+                dense_palette.append(self.palette_dict[cid])
+            else:
+                dense_palette.append({
+                    "id": cid,
+                    "name": f"Color {cid}",
+                    "hex": "#FFFFFF",
+                    "rgb": [255, 255, 255],
+                    "category": "实色"
+                })
         
-        return pixels, used_colors
+        return pixels, dense_palette
