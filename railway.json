@@ -5,6 +5,6 @@
   },
   "deploy": {
     "numInstances": 1,
-    "runtime": "docker"
+    "runtime": "V2"
   }
 }
