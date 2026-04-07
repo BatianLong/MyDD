@@ -16,7 +16,10 @@ from pathlib import Path
 CATEGORY_SOLID = "实色"
 CATEGORIES = [CATEGORY_SOLID]
 
-_PALETTE_FILE = Path(__file__).with_name("mard_221.csv")
+_PALETTE_FILES = [
+    Path(__file__).with_name("mard_221.csv"),
+    Path(__file__).with_name("mard_291.csv"),
+]
 
 
 def _hex_to_rgb(hex_color):
@@ -27,28 +30,31 @@ def _hex_to_rgb(hex_color):
 
 
 def _load_mard_solid_palette():
-    palette = []
-    if not _PALETTE_FILE.exists():
-        return palette
+    for file_path in _PALETTE_FILES:
+        if not file_path.exists():
+            continue
 
-    with _PALETTE_FILE.open("r", encoding="utf-8-sig", newline="") as fp:
-        reader = csv.DictReader(fp)
-        for index, row in enumerate(reader):
-            bead_id = str(row.get("code", "")).strip().upper()
-            hex_color = str(row.get("hex", "")).strip().upper()
-            if not bead_id or not hex_color:
-                continue
+        palette = []
+        with file_path.open("r", encoding="utf-8-sig", newline="") as fp:
+            reader = csv.DictReader(fp)
+            for index, row in enumerate(reader):
+                bead_id = str(row.get("code", "")).strip().upper()
+                hex_color = str(row.get("hex", "")).strip().upper()
+                if not bead_id or not hex_color:
+                    continue
 
-            palette.append({
-                "id": index,
-                "beadId": bead_id,
-                "code": bead_id,
-                "name": f"MARD {bead_id}",
-                "hex": hex_color,
-                "rgb": _hex_to_rgb(hex_color),
-                "category": CATEGORY_SOLID,
-            })
-    return palette
+                palette.append({
+                    "id": index,
+                    "beadId": bead_id,
+                    "code": bead_id,
+                    "name": f"MARD {bead_id}",
+                    "hex": hex_color,
+                    "rgb": _hex_to_rgb(hex_color),
+                    "category": CATEGORY_SOLID,
+                })
+        if len(palette) >= 8:
+            return palette
+    return []
 
 
 CLASSIC_PALETTE = _load_mard_solid_palette()
@@ -107,3 +113,8 @@ def get_palette_meta():
         "categories": CATEGORIES,
         "category_counts": dict(counts),
     }
+
+
+def is_fallback_palette():
+    """Whether the runtime palette is fallback data (not official MARD dataset)."""
+    return IS_FALLBACK_PALETTE

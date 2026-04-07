@@ -239,6 +239,145 @@ class ColorQuantizer:
         offset_y = (height - new_h) // 2
         canvas.paste(resized, (offset_x, offset_y))
         return canvas
+
+    def _extract_dominant_grid_rgb(self, image, width, height, cell_scale=4):
+        """
+        先放大到 (width*cell_scale, height*cell_scale) 再按小块提取主导色。
+        这样比直接缩到 width*height 再取像素更能保留边缘和色阶结构。
+        """
+        hi_w = max(width, width * max(2, int(cell_scale)))
+        hi_h = max(height, height * max(2, int(cell_scale)))
+        hi_img = self._resize_contain_center(image, hi_w, hi_h)
+        hi = np.array(hi_img, dtype=np.uint8)
+
+        # 预计算网格边界，确保每个像素都落在某个单元内。
+        xs = np.linspace(0, hi_w, num=width + 1, dtype=np.int32)
+        ys = np.linspace(0, hi_h, num=height + 1, dtype=np.int32)
+
+        grid_rgb = np.zeros((height, width, 3), dtype=np.float32)
+        for gy in range(height):
+            y0, y1 = int(ys[gy]), int(ys[gy + 1])
+            if y1 <= y0:
+                y1 = min(hi_h, y0 + 1)
+            for gx in range(width):
+                x0, x1 = int(xs[gx]), int(xs[gx + 1])
+                if x1 <= x0:
+                    x1 = min(hi_w, x0 + 1)
+
+                block = hi[y0:y1, x0:x1]
+                if block.size == 0:
+                    grid_rgb[gy, gx] = [255, 255, 255]
+                    continue
+
+                # 4-bit 量化桶用于统计主导色（4096 桶）。
+                q = (block // 16).astype(np.int32)
+                code = q[:, :, 0] * 256 + q[:, :, 1] * 16 + q[:, :, 2]
+                flat_code = code.reshape(-1)
+                hist = np.bincount(flat_code, minlength=4096)
+                dom = int(np.argmax(hist))
+                mask = (flat_code == dom)
+
+                flat_rgb = block.reshape(-1, 3).astype(np.float32)
+                if np.any(mask):
+                    rgb = flat_rgb[mask].mean(axis=0)
+                else:
+                    rgb = flat_rgb.mean(axis=0)
+                grid_rgb[gy, gx] = rgb
+
+        return grid_rgb
+
+    def _cleanup_speckles(self, pixels):
+        """
+        轻量杂色清理：对孤立点做邻域主色替换。
+        """
+        h = len(pixels)
+        w = len(pixels[0]) if h else 0
+        if h == 0 or w == 0:
+            return pixels
+
+        src = [row[:] for row in pixels]
+        out = [row[:] for row in pixels]
+
+        for y in range(h):
+            for x in range(w):
+                center = src[y][x]
+                counter = {}
+                for ny in range(max(0, y - 1), min(h, y + 2)):
+                    for nx in range(max(0, x - 1), min(w, x + 2)):
+                        if nx == x and ny == y:
+                            continue
+                        cid = src[ny][nx]
+                        counter[cid] = counter.get(cid, 0) + 1
+
+                same_count = counter.get(center, 0)
+                if same_count >= 2:
+                    continue
+
+                major_id = center
+                major_count = 0
+                for cid, cnt in counter.items():
+                    if cnt > major_count:
+                        major_count = cnt
+                        major_id = cid
+                if major_id != center and major_count >= 4:
+                    out[y][x] = major_id
+
+        return out
+
+    def _merge_similar_regions(self, pixels, threshold=22.0):
+        """
+        基于 BFS 的区域合并：把颜色距离较近的连通区域合并为区域主色。
+        思路参考同类开源实现中的“区域颜色合并”。
+        """
+        h = len(pixels)
+        w = len(pixels[0]) if h else 0
+        if h == 0 or w == 0:
+            return pixels
+
+        visited = [[False] * w for _ in range(h)]
+        out = [row[:] for row in pixels]
+
+        def color_dist(id1, id2):
+            c1 = self.palette_by_id.get(id1, {}).get("rgb", [255, 255, 255])
+            c2 = self.palette_by_id.get(id2, {}).get("rgb", [255, 255, 255])
+            dr = float(c1[0] - c2[0])
+            dg = float(c1[1] - c2[1])
+            db = float(c1[2] - c2[2])
+            return (dr * dr + dg * dg + db * db) ** 0.5
+
+        for y in range(h):
+            for x in range(w):
+                if visited[y][x]:
+                    continue
+
+                seed = out[y][x]
+                queue = [(x, y)]
+                visited[y][x] = True
+                region = []
+                counts = {}
+
+                while queue:
+                    cx, cy = queue.pop()
+                    cid = out[cy][cx]
+                    region.append((cx, cy))
+                    counts[cid] = counts.get(cid, 0) + 1
+
+                    for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                        if nx < 0 or ny < 0 or nx >= w or ny >= h or visited[ny][nx]:
+                            continue
+                        nid = out[ny][nx]
+                        if color_dist(seed, nid) <= threshold:
+                            visited[ny][nx] = True
+                            queue.append((nx, ny))
+
+                if len(region) < 3:
+                    continue
+
+                major_id = max(counts.items(), key=lambda kv: kv[1])[0]
+                for rx, ry in region:
+                    out[ry][rx] = major_id
+
+        return out
     
     def quantize_image(self, image, width, height):
         """
@@ -260,9 +399,8 @@ class ColorQuantizer:
         
         original_width, original_height = image.size
         
-        # 先做“等比 + 居中”预处理，保证默认视图更接近原图构图。
-        img = self._resize_contain_center(image, width, height)
-        work = np.array(img, dtype=np.float32)
+        # 先做主导色像素化，再映射到拼豆色板。
+        work = self._extract_dominant_grid_rgb(image, width, height, cell_scale=4).astype(np.float32)
 
         pixels = [[0 for _ in range(width)] for _ in range(height)]
         used_color_ids = set()
@@ -314,6 +452,13 @@ class ColorQuantizer:
                     color_id = self.find_nearest_color((old[0], old[1], old[2]))
                     pixels[y][x] = color_id
                     used_color_ids.add(color_id)
+
+        # 后处理：先做区域合并，再做孤点清理。
+        pixels = self._merge_similar_regions(pixels, threshold=22.0)
+        pixels = self._cleanup_speckles(pixels)
+        used_color_ids = set()
+        for row in pixels:
+            used_color_ids.update(row)
         
         # 返回完整色卡，保证前端可按色号 id 直接索引颜色。
         max_id = max(self.palette_dict.keys()) if self.palette_dict else 0

@@ -16,7 +16,7 @@ from collections import deque
 
 # 导入自定义模块
 from services.color_quantizer import ColorQuantizer
-from data.palette import get_palette, get_palette_meta
+from data.palette import get_palette, get_palette_meta, is_fallback_palette
 
 # 创建 Flask 应用
 app = Flask(__name__)
@@ -199,6 +199,13 @@ def convert_image():
                 "code": code,
                 "message": msg
             }), code
+
+        # 只允许在正式 MARD 色库可用时执行解析，避免输出兜底色号（FBxx）。
+        if is_fallback_palette():
+            return jsonify({
+                "code": 503,
+                "message": "palette dataset missing on server (MARD 221 not loaded)"
+            }), 503
         
         # 创建颜色量化器并处理图片
         quantizer = ColorQuantizer(distance_metric=distance_metric, dither=dither)
