@@ -85,11 +85,17 @@ def _segment_foreground_white_bg(image):
     )
     bg = np.median(border, axis=0)
 
-    diff = np.abs(arr - bg).sum(axis=2)
-    border_diff = np.abs(border - bg).sum(axis=1)
-    thr = int(max(24, min(120, np.percentile(border_diff, 85) + 10)))
+    # 使用更保守的背景判定，避免把主体误判为背景：
+    # 1) 使用每通道最大差 + RGB 总差双阈值
+    # 2) 阈值收紧，优先“少抠”而不是“误抠”
+    diff_sum = np.abs(arr - bg).sum(axis=2)
+    diff_max = np.abs(arr - bg).max(axis=2)
+    border_diff_sum = np.abs(border - bg).sum(axis=1)
+    border_diff_max = np.abs(border - bg).max(axis=1)
 
-    candidate_bg = diff <= thr
+    thr_sum = int(max(18, min(72, np.percentile(border_diff_sum, 72) + 6)))
+    thr_max = int(max(8, min(30, np.percentile(border_diff_max, 72) + 3)))
+    candidate_bg = (diff_sum <= thr_sum) & (diff_max <= thr_max)
     bg_mask = np.zeros((h, w), dtype=bool)
     q = deque()
 
@@ -116,7 +122,21 @@ def _segment_foreground_white_bg(image):
                 q.append((ny, nx))
 
     fg_mask = ~bg_mask
-    fg_mask = _largest_component(fg_mask)
+
+    # 主体保护：如果前景比例过小，说明误删严重，直接回退不去背景。
+    fg_ratio = float(fg_mask.mean())
+    if fg_ratio < 0.06:
+        return image.convert('RGB')
+
+    # 对前景做一次轻微膨胀，减少边缘被削薄。
+    padded = np.pad(fg_mask, ((1, 1), (1, 1)), mode='constant', constant_values=False)
+    dilated = fg_mask.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue
+            dilated |= padded[1 + dy:h + 1 + dy, 1 + dx:w + 1 + dx]
+    fg_mask = dilated
 
     out = arr.astype(np.uint8).copy()
     out[~fg_mask] = [255, 255, 255]

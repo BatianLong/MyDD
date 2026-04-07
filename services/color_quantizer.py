@@ -108,7 +108,7 @@ class ColorQuantizer:
         target_lab = self._rgb_to_lab(key)
         
         min_dist = float('inf')
-        nearest_idx = 0
+        nearest_idx = None
         
         # 同类像素化工具通常用 ΔE 度量（而不是 RGB 欧氏距离）提升色感一致性
         for color in self.palette:
@@ -117,9 +117,20 @@ class ColorQuantizer:
                 dist = float(np.linalg.norm(target_lab - color_lab))
             else:
                 dist = self._delta_e_ciede2000(target_lab, color_lab)
+                # CIEDE2000 在极端情况下可能出现非有限值，回退到 LAB 欧氏距离兜底。
+                if not np.isfinite(dist):
+                    dist = float(np.linalg.norm(target_lab - color_lab))
+
+            if not np.isfinite(dist):
+                continue
+
             if dist < min_dist:
                 min_dist = dist
                 nearest_idx = color["id"]
+
+        # 全量兜底，避免异常情况下全部回落到默认 0 号色。
+        if nearest_idx is None:
+            nearest_idx = self.palette[0]["id"] if self.palette else 0
 
         self.nearest_cache[key] = nearest_idx
         return nearest_idx
@@ -196,13 +207,16 @@ class ColorQuantizer:
         kC = 1.0
         kH = 1.0
 
-        dE = (
+        dE_sq = (
             (dLp / (kL * S_L)) ** 2
             + (dCp / (kC * S_C)) ** 2
             + (dHp / (kH * S_H)) ** 2
             + R_T * (dCp / (kC * S_C)) * (dHp / (kH * S_H))
-        ) ** 0.5
-        return float(dE)
+        )
+        # 数值误差保护：避免对负数开根导致 NaN。
+        if dE_sq < 0:
+            dE_sq = 0.0
+        return float(dE_sq ** 0.5)
 
     def _resize_contain_center(self, image, width, height):
         """
