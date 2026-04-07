@@ -169,6 +169,8 @@ def convert_image():
         image_base64 = data.get('image_base64')
         width = data.get('width', 35)
         height = data.get('height', 35)
+        distance_metric = data.get('distance_metric', 'ciede2000')
+        dither = data.get('dither', True)
         
         image, err = _safe_decode_image(image_base64)
         if err:
@@ -179,7 +181,7 @@ def convert_image():
             }), code
         
         # 创建颜色量化器并处理图片
-        quantizer = ColorQuantizer()
+        quantizer = ColorQuantizer(distance_metric=distance_metric, dither=dither)
         pixels, used_colors = quantizer.quantize_image(image, width, height)
         
         # 返回结果
