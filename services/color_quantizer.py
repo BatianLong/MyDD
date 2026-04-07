@@ -478,3 +478,48 @@ class ColorQuantizer:
                 })
         
         return pixels, dense_palette
+
+    def quantize_image_pixart(self, image, width, height, pre_colors=64):
+        """
+        PixArt-style pipeline:
+        1) contain resize
+        2) pre-quantize with PIL to reduce tiny gradients/noise
+        3) map each pixel to nearest bead color (no error diffusion)
+        """
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        base = self._resize_contain_center(image, width, height)
+        # 先做一次预量化，参考同类工具常见流程，减少细碎颜色抖动。
+        try:
+            q = base.quantize(colors=max(2, int(pre_colors)), dither=Image.NONE)
+            work = np.array(q.convert('RGB'), dtype=np.float32)
+        except Exception:
+            work = np.array(base, dtype=np.float32)
+
+        pixels = [[0 for _ in range(width)] for _ in range(height)]
+        for y in range(height):
+            for x in range(width):
+                old = np.clip(work[y, x], 0, 255)
+                pixels[y][x] = self.find_nearest_color((old[0], old[1], old[2]))
+
+        pixels = self._merge_similar_regions(pixels, threshold=20.0)
+        pixels = self._cleanup_speckles(pixels)
+
+        max_id = max(self.palette_dict.keys()) if self.palette_dict else 0
+        dense_palette = []
+        for cid in range(max_id + 1):
+            if cid in self.palette_dict:
+                dense_palette.append(self.palette_dict[cid])
+            else:
+                dense_palette.append({
+                    "id": cid,
+                    "beadId": f"UNK{cid}",
+                    "code": f"UNK{cid}",
+                    "name": f"Color {cid}",
+                    "hex": "#FFFFFF",
+                    "rgb": [255, 255, 255],
+                    "category": "实色"
+                })
+
+        return pixels, dense_palette

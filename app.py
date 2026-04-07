@@ -16,7 +16,7 @@ from collections import deque
 
 # 导入自定义模块
 from services.color_quantizer import ColorQuantizer
-from data.palette import get_palette, get_palette_meta, is_fallback_palette
+from data.palette import get_palette, get_palette_meta
 
 # 创建 Flask 应用
 app = Flask(__name__)
@@ -191,6 +191,7 @@ def convert_image():
         height = data.get('height', 35)
         distance_metric = data.get('distance_metric', 'ciede2000')
         dither = data.get('dither', True)
+        parse_mode = data.get('parse_mode', 'pixart')
         
         image, err = _safe_decode_image(image_base64)
         if err:
@@ -200,16 +201,12 @@ def convert_image():
                 "message": msg
             }), code
 
-        # 只允许在正式 MARD 色库可用时执行解析，避免输出兜底色号（FBxx）。
-        if is_fallback_palette():
-            return jsonify({
-                "code": 503,
-                "message": "palette dataset missing on server (MARD 221 not loaded)"
-            }), 503
-        
         # 创建颜色量化器并处理图片
         quantizer = ColorQuantizer(distance_metric=distance_metric, dither=dither)
-        pixels, used_colors = quantizer.quantize_image(image, width, height)
+        if parse_mode == 'pixart':
+            pixels, used_colors = quantizer.quantize_image_pixart(image, width, height, pre_colors=64)
+        else:
+            pixels, used_colors = quantizer.quantize_image(image, width, height)
         
         # 返回结果
         return jsonify({
@@ -319,6 +316,20 @@ def get_sizes():
     return jsonify({
         "code": 0,
         "data": sizes
+    })
+
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    meta = get_palette_meta()
+    return jsonify({
+        "code": 0,
+        "data": {
+            "palette_total": meta.get("total"),
+            "palette_fallback": meta.get("fallback"),
+            "palette_standard": meta.get("standard"),
+            "version": "1.1.0"
+        }
     })
 
 
