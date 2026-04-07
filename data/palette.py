@@ -1,105 +1,116 @@
 """
-拼豆色卡数据模块
+PerlerCraft palette data.
 
-定义拼拼豆豆（Perler Beads）经典色卡，包含50种常用颜色。
-每种颜色包含：id（索引）、name（中文名）、hex（十六进制）、rgb（RGB值）
+Unified bead color schema:
+- id: unified bead code (int)
+- name: color display name (zh-CN)
+- hex: color hex value
+- rgb: RGB tuple
+- category: 实色 / 珠光 / 果冻 / 细闪 / 银光 / 追光 / 温变
 """
 
-# 经典拼豆色卡 - 共50种颜色
-# 包含：基础色、红色系、橙色系、黄色系、绿色系、蓝色系、紫色系、粉色系、棕色系、特殊色
-CLASSIC_PALETTE = [
-    # ===== 基础色 =====
-    {"id": 0, "name": "白色", "hex": "#FFFFFF", "rgb": (255, 255, 255)},
-    {"id": 1, "name": "黑色", "hex": "#1A1A1A", "rgb": (26, 26, 26)},
-    {"id": 2, "name": "灰色", "hex": "#9E9E9E", "rgb": (158, 158, 158)},
-    {"id": 3, "name": "浅灰", "hex": "#C0C0C0", "rgb": (192, 192, 192)},
-    {"id": 4, "name": "深灰", "hex": "#696969", "rgb": (105, 105, 105)},
-    
-    # ===== 红色系 =====
-    {"id": 5, "name": "红色", "hex": "#E31C25", "rgb": (227, 28, 37)},
-    {"id": 6, "name": "深红", "hex": "#8B0000", "rgb": (139, 0, 0)},
-    {"id": 7, "name": "浅红", "hex": "#FF6B6B", "rgb": (255, 107, 107)},
-    {"id": 8, "name": "橙红", "hex": "#FF4136", "rgb": (255, 65, 54)},
-    
-    # ===== 橙色系 =====
-    {"id": 9, "name": "橙色", "hex": "#FF851B", "rgb": (255, 133, 27)},
-    {"id": 10, "name": "杏色", "hex": "#FFDC00", "rgb": (255, 220, 0)},
-    
-    # ===== 黄色系 =====
-    {"id": 11, "name": "黄色", "hex": "#FFEB3B", "rgb": (255, 235, 59)},
-    {"id": 12, "name": "柠檬黄", "hex": "#FFF700", "rgb": (255, 247, 0)},
-    {"id": 13, "name": "金黄", "hex": "#FFD700", "rgb": (255, 215, 0)},
-    
-    # ===== 棕色系 =====
-    {"id": 14, "name": "棕色", "hex": "#8B4513", "rgb": (139, 69, 19)},
-    {"id": 15, "name": "浅棕", "hex": "#CD853F", "rgb": (205, 133, 63)},
-    {"id": 16, "name": "深棕", "hex": "#5D4037", "rgb": (93, 64, 55)},
-    {"id": 17, "name": "驼色", "hex": "#D2B48C", "rgb": (210, 180, 140)},
-    
-    # ===== 绿色系 =====
-    {"id": 18, "name": "绿色", "hex": "#00A86B", "rgb": (0, 168, 107)},
-    {"id": 19, "name": "深绿", "hex": "#228B22", "rgb": (34, 139, 34)},
-    {"id": 20, "name": "浅绿", "hex": "#90EE90", "rgb": (144, 238, 144)},
-    {"id": 21, "name": "军绿", "hex": "#556B2F", "rgb": (85, 107, 47)},
-    {"id": 22, "name": "薄荷绿", "hex": "#98FF98", "rgb": (152, 255, 152)},
-    {"id": 43, "name": "墨绿", "hex": "#355E3B", "rgb": (53, 94, 59)},
-    {"id": 44, "name": "荧光绿", "hex": "#39FF14", "rgb": (57, 255, 20)},
-    {"id": 45, "name": "粉绿", "hex": "#77DD77", "rgb": (119, 221, 119)},
-    
-    # ===== 青色系 =====
-    {"id": 23, "name": "青色", "hex": "#008B8B", "rgb": (0, 139, 139)},
-    
-    # ===== 蓝色系 =====
-    {"id": 24, "name": "蓝色", "hex": "#0077BE", "rgb": (0, 119, 190)},
-    {"id": 25, "name": "深蓝", "hex": "#0047AB", "rgb": (0, 71, 171)},
-    {"id": 26, "name": "浅蓝", "hex": "#87CEEB", "rgb": (135, 206, 235)},
-    {"id": 27, "name": "天蓝", "hex": "#00BFFF", "rgb": (0, 191, 255)},
-    {"id": 28, "name": "藏蓝", "hex": "#1F456E", "rgb": (31, 69, 110)},
-    {"id": 29, "name": "宝蓝", "hex": "#4169E1", "rgb": (65, 105, 225)},
-    {"id": 46, "name": "雾霾蓝", "hex": "#9DB4C0", "rgb": (157, 180, 192)},
-    {"id": 42, "name": "海蓝", "hex": "#40E0D0", "rgb": (64, 224, 208)},
-    
-    # ===== 紫色系 =====
-    {"id": 30, "name": "紫色", "hex": "#8F00FF", "rgb": (143, 0, 255)},
-    {"id": 31, "name": "深紫", "hex": "#6A0DAD", "rgb": (106, 13, 173)},
-    {"id": 32, "name": "浅紫", "hex": "#E6E6FA", "rgb": (230, 230, 250)},
-    {"id": 33, "name": "紫罗兰", "hex": "#EE82EE", "rgb": (238, 130, 238)},
-    {"id": 47, "name": "香芋紫", "hex": "#DA8FDC", "rgb": (218, 143, 220)},
-    
-    # ===== 粉色系 =====
-    {"id": 34, "name": "粉色", "hex": "#FF69B4", "rgb": (255, 105, 180)},
-    {"id": 35, "name": "浅粉", "hex": "#FFB6C1", "rgb": (255, 182, 193)},
-    {"id": 36, "name": "深粉", "hex": "#FF1493", "rgb": (255, 20, 147)},
-    {"id": 37, "name": "桃色", "hex": "#FFCBA4", "rgb": (255, 203, 164)},
-    {"id": 38, "name": "肤色", "hex": "#FFDCB9", "rgb": (255, 220, 185)},
-    {"id": 40, "name": "玫瑰金", "hex": "#B76E79", "rgb": (183, 110, 121)},
-    {"id": 49, "name": "烟灰粉", "hex": "#E0B0B0", "rgb": (224, 176, 176)},
-    
-    # ===== 特殊色 =====
-    {"id": 39, "name": "酒红", "hex": "#722F37", "rgb": (114, 47, 55)},
-    {"id": 41, "name": "珊瑚色", "hex": "#FF7F50", "rgb": (255, 127, 80)},
-    {"id": 48, "name": "奶茶色", "hex": "#D2B48C", "rgb": (210, 180, 140)},
+from collections import Counter
+
+CATEGORY_SOLID = "实色"
+CATEGORY_PEARL = "珠光"
+CATEGORY_JELLY = "果冻"
+CATEGORY_GLITTER = "细闪"
+CATEGORY_METALLIC = "银光"
+CATEGORY_GLOW = "追光"
+CATEGORY_THERMO = "温变"
+
+CATEGORIES = [
+    CATEGORY_SOLID,
+    CATEGORY_PEARL,
+    CATEGORY_JELLY,
+    CATEGORY_GLITTER,
+    CATEGORY_METALLIC,
+    CATEGORY_GLOW,
+    CATEGORY_THERMO,
 ]
 
 
-def get_palette(name="classic"):
-    """
-    获取拼豆色卡
-    
-    Args:
-        name: 色卡名称，目前只支持 "classic"
-    
-    Returns:
-        list: 色卡颜色数组
-    """
-    return CLASSIC_PALETTE
+def _c(color_id, name, hex_color, rgb, category=CATEGORY_SOLID):
+    return {
+        "id": int(color_id),
+        "name": str(name),
+        "hex": str(hex_color).upper(),
+        "rgb": [int(rgb[0]), int(rgb[1]), int(rgb[2])],
+        "category": category,
+    }
+
+
+# Current project palette (50 colors) mapped into unified schema.
+# Note: this is a base subset and can be expanded to a full 221-color library later.
+CLASSIC_PALETTE = [
+    _c(0, "白色", "#FFFFFF", (255, 255, 255)),
+    _c(1, "黑色", "#1A1A1A", (26, 26, 26)),
+    _c(2, "灰色", "#9E9E9E", (158, 158, 158)),
+    _c(3, "浅灰", "#C0C0C0", (192, 192, 192)),
+    _c(4, "深灰", "#696969", (105, 105, 105)),
+    _c(5, "红色", "#E31C25", (227, 28, 37)),
+    _c(6, "深红", "#8B0000", (139, 0, 0)),
+    _c(7, "浅红", "#FF6B6B", (255, 107, 107)),
+    _c(8, "橙红", "#FF4136", (255, 65, 54)),
+    _c(9, "橙色", "#FF851B", (255, 133, 27)),
+    _c(10, "杏色", "#FFDC00", (255, 220, 0)),
+    _c(11, "黄色", "#FFEB3B", (255, 235, 59)),
+    _c(12, "柠檬黄", "#FFF700", (255, 247, 0)),
+    _c(13, "金黄", "#FFD700", (255, 215, 0)),
+    _c(14, "棕色", "#8B4513", (139, 69, 19)),
+    _c(15, "浅棕", "#CD853F", (205, 133, 63)),
+    _c(16, "深棕", "#5D4037", (93, 64, 55)),
+    _c(17, "驼色", "#D2B48C", (210, 180, 140)),
+    _c(18, "绿色", "#00A86B", (0, 168, 107)),
+    _c(19, "深绿", "#228B22", (34, 139, 34)),
+    _c(20, "浅绿", "#90EE90", (144, 238, 144)),
+    _c(21, "军绿", "#556B2F", (85, 107, 47)),
+    _c(22, "薄荷绿", "#98FF98", (152, 255, 152)),
+    _c(23, "青色", "#008B8B", (0, 139, 139)),
+    _c(24, "蓝色", "#0077BE", (0, 119, 190)),
+    _c(25, "深蓝", "#0047AB", (0, 71, 171)),
+    _c(26, "浅蓝", "#87CEEB", (135, 206, 235)),
+    _c(27, "天蓝", "#00BFFF", (0, 191, 255)),
+    _c(28, "藏蓝", "#1F456E", (31, 69, 110)),
+    _c(29, "宝蓝", "#4169E1", (65, 105, 225)),
+    _c(30, "紫色", "#8F00FF", (143, 0, 255)),
+    _c(31, "深紫", "#6A0DAD", (106, 13, 173)),
+    _c(32, "浅紫", "#E6E6FA", (230, 230, 250)),
+    _c(33, "紫罗兰", "#EE82EE", (238, 130, 238)),
+    _c(34, "粉色", "#FF69B4", (255, 105, 180)),
+    _c(35, "浅粉", "#FFB6C1", (255, 182, 193)),
+    _c(36, "深粉", "#FF1493", (255, 20, 147)),
+    _c(37, "桃色", "#FFCBA4", (255, 203, 164)),
+    _c(38, "肤色", "#FFDCB9", (255, 220, 185)),
+    _c(39, "酒红", "#722F37", (114, 47, 55)),
+    _c(40, "玫瑰金", "#B76E79", (183, 110, 121), CATEGORY_METALLIC),
+    _c(41, "珊瑚色", "#FF7F50", (255, 127, 80)),
+    _c(42, "海蓝", "#40E0D0", (64, 224, 208)),
+    _c(43, "墨绿", "#355E3B", (53, 94, 59)),
+    _c(44, "荧光绿", "#39FF14", (57, 255, 20), CATEGORY_GLOW),
+    _c(45, "粉绿", "#77DD77", (119, 221, 119)),
+    _c(46, "雾霾蓝", "#9DB4C0", (157, 180, 192), CATEGORY_PEARL),
+    _c(47, "香芋紫", "#DA8FDC", (218, 143, 220), CATEGORY_PEARL),
+    _c(48, "奶茶色", "#C8A47A", (200, 164, 122)),
+    _c(49, "烟灰粉", "#E0B0B0", (224, 176, 176), CATEGORY_JELLY),
+]
+
+
+def get_palette(name="classic", category=None):
+    palette = CLASSIC_PALETTE
+    if category:
+      palette = [c for c in palette if c.get("category") == category]
+    return palette
 
 
 def get_palette_dict():
-    """
-    获取色卡的字典形式（以 id 为 key）
-    
-    Returns:
-        dict: {颜色id: 颜色信息} 的字典
-    """
     return {c["id"]: c for c in CLASSIC_PALETTE}
+
+
+def get_palette_meta():
+    counts = Counter(c.get("category", CATEGORY_SOLID) for c in CLASSIC_PALETTE)
+    return {
+        "total": len(CLASSIC_PALETTE),
+        "categories": CATEGORIES,
+        "category_counts": dict(counts),
+    }

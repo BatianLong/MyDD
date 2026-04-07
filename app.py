@@ -14,7 +14,7 @@ import os
 
 # 导入自定义模块
 from services.color_quantizer import ColorQuantizer
-from data.palette import get_palette
+from data.palette import get_palette, get_palette_meta
 
 # 创建 Flask 应用
 app = Flask(__name__)
@@ -77,9 +77,27 @@ def convert_image():
                 "message": "image_base64 is required"
             }), 400
         
+        # 大体积请求保护，避免服务被超大图片拖垮。
+        if len(image_base64) > 2_000_000:
+            return jsonify({
+                "code": 413,
+                "message": "image payload too large, compress before upload"
+            }), 413
+
         # Base64 解码为图片
         image_data = base64.b64decode(image_base64)
+        if len(image_data) > 1_500_000:
+            return jsonify({
+                "code": 413,
+                "message": "decoded image too large, compress before upload"
+            }), 413
+
         image = Image.open(io.BytesIO(image_data))
+        if image.width > 4096 or image.height > 4096:
+            return jsonify({
+                "code": 413,
+                "message": "image dimensions too large, compress before upload"
+            }), 413
         
         # 创建颜色量化器并处理图片
         quantizer = ColorQuantizer()
@@ -124,10 +142,12 @@ def get_palette_api():
         }
     """
     palette_type = request.args.get('type', 'classic')
-    palette = get_palette(palette_type)
+    category = request.args.get('category')
+    palette = get_palette(palette_type, category=category)
     return jsonify({
         "code": 0,
-        "data": palette
+        "data": palette,
+        "meta": get_palette_meta()
     })
 
 
